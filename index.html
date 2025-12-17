@@ -137,6 +137,11 @@
     </div>
   </div>
 
+  <div id="orientWarn" class="hint err" style="display:none; margin-top:8px;">
+  If scanning won’t decode: turn <b>OFF</b> iPhone <b>Orientation Lock</b> (🔒) and rotate so the barcode is <b>horizontal</b>.
+</div>
+  
+
   <div class="card">
     <div class="row">
       <div>
@@ -243,7 +248,7 @@
   // -----------------------------
   const video = document.getElementById("video");
   const scanStatus = document.getElementById("scanStatus");
-
+  const orientWarn = document.getElementById("orientWarn");
   const btnStart = document.getElementById("btnStart");
   const btnStop = document.getElementById("btnStop");
   const btnTorch = document.getElementById("btnTorch");
@@ -335,7 +340,7 @@
     btnTorch.disabled = true;
     btnLiveScan.disabled = true;
     btnCapture.disabled = true;
-
+    orientWarn.style.display = "none";
     btnLiveScan.textContent = "Live Scan (Auto)";
     setStatus("Camera stopped. Tap Start Camera when ready.", "");
   }
