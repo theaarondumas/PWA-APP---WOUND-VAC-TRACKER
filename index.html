@@ -11,10 +11,12 @@
   <meta name="apple-mobile-web-app-title" content="Wound Vac Tracker">
 
   <link rel="manifest" href="./manifest.json">
-  <!-- Optional: add these after you create icons -->
   <link rel="apple-touch-icon" href="./icon-192.png">
 
   <title>Wound Vac Tracker (PHI-Free)</title>
+
+  <!-- ✅ iPhone-safe QR decoder (works on GitHub Pages) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
   <style>
     :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -60,10 +62,11 @@
       pointer-events:none;
       display:flex; align-items:center; justify-content:center;
     }
+    /* QR works best with a more square guide */
     .guideBox {
-      width: 78%;
+      width: 72%;
       max-width: 420px;
-      aspect-ratio: 3 / 1;
+      aspect-ratio: 1 / 1;
       border-radius: 14px;
       border: 2px solid rgba(138,255,179,0.85);
       box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
@@ -99,13 +102,13 @@
 <body>
   <h1>Wound Vac Tracker (PHI-Free)</h1>
   <p class="sub">
-    Track devices by <b>Device ID (barcode)</b> + location (<b>Unit / Room / Bed</b>). No patient names, MRNs, DOB, or PHI.
-    Scanning uses native <span class="pill">BarcodeDetector</span> when available.
+    Track devices by <b>Device ID (QR)</b> + location (<b>Unit / Room / Bed</b>). No patient names, MRNs, DOB, or PHI.
+    Scanning uses <span class="pill">jsQR</span> (iPhone-safe).
   </p>
 
   <div class="banner" id="installBanner">
     <b>Install as an app:</b> on iPhone tap <b>Share</b> → <b>Add to Home Screen</b>.
-    This improves “app feel” + offline reliability.
+    This improves “app feel” + reliability.
   </div>
 
   <div class="card">
@@ -126,27 +129,26 @@
         <video id="video" playsinline muted></video>
         <div class="overlay">
           <div class="guideBox"></div>
-          <div class="guideText">Tip: pull one package out, center barcode in the green box, reduce glare, hold steady.</div>
+          <div class="guideText">Tip: show ONE QR at a time, center it in the green box, reduce glare, hold steady.</div>
         </div>
       </div>
 
       <div id="scanStatus" class="status">Ready. Tap <b>Start Camera</b> to request camera permission.</div>
       <div class="hint">
-        If decode fails, manually type the Device ID. Browser scanning can be inconsistent behind plastic/glare.
+        If decode fails: make the QR bigger in frame (fill ~40–60%), avoid glare, and ensure only ONE code is visible.
       </div>
     </div>
   </div>
 
   <div id="orientWarn" class="hint err" style="display:none; margin-top:8px;">
-  If scanning won’t decode: turn <b>OFF</b> iPhone <b>Orientation Lock</b> (🔒) and rotate so the barcode is <b>horizontal</b>.
-</div>
-  
+    If scanning won’t decode: turn <b>OFF</b> iPhone <b>Orientation Lock</b> (🔒) and try landscape.
+  </div>
 
   <div class="card">
     <div class="row">
       <div>
         <label>Device ID (scan or type)</label>
-        <input id="deviceId" class="mono" placeholder="e.g., KCI-123456789" autocomplete="off" />
+        <input id="deviceId" class="mono" placeholder="e.g., wv:KCI:123456" autocomplete="off" />
       </div>
       <div>
         <label>Status</label>
@@ -273,11 +275,12 @@
   const stats = document.getElementById("stats");
 
   // -----------------------------
-  // Camera + scanning
+  // Camera + scanning (jsQR)
   // -----------------------------
   let activeStream = null;
   let scanning = false;
   let torchOn = false;
+  let rafId = null;
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -287,26 +290,14 @@
     scanStatus.textContent = msg;
   }
 
-  function canBarcodeDetect() {
-    return "BarcodeDetector" in window;
-  }
-
-  function makeDetector() {
-    // Common hospital barcode formats
-    return new BarcodeDetector({
-      formats: ["code_128", "code_39", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"]
-    });
-  }
-
   async function startCamera() {
-    // MUST be called from a real user tap (iOS requirement)
     video.setAttribute("playsinline", "true");
     video.muted = true;
 
     const constraints = {
       audio: false,
       video: {
-        facingMode: "environment", // avoid exact: true (breaks on iOS often)
+        facingMode: "environment",
         width: { ideal: 1280 },
         height: { ideal: 720 }
       }
@@ -318,7 +309,6 @@
       await video.play();
       return stream;
     } catch (e) {
-      // Fallback: any camera
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       video.srcObject = stream;
       await video.play();
@@ -329,6 +319,8 @@
   function stopCamera() {
     scanning = false;
     torchOn = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
 
     if (activeStream) {
       activeStream.getTracks().forEach(t => t.stop());
@@ -365,84 +357,77 @@
     }
   }
 
-  async function decodeFromVideoFrame(detector) {
-    // Draw the current video frame to canvas, then detect on that still.
-    // This "capture" method is often more reliable than detecting directly from video on iOS.
+  function decodeFromVideoFrame_jsQR() {
     const w = video.videoWidth || 1280;
     const h = video.videoHeight || 720;
-
     if (!w || !h) return null;
 
-    // Crop to center area where guide box is (approx)
-    const cropW = Math.floor(w * 0.80);
-    const cropH = Math.floor(h * 0.30);
-    const sx = Math.floor((w - cropW) / 2);
-    const sy = Math.floor((h - cropH) / 2);
+    // Crop to center area (guide box) for speed + fewer false reads
+    const cropSize = Math.floor(Math.min(w, h) * 0.78);
+    const sx = Math.floor((w - cropSize) / 2);
+    const sy = Math.floor((h - cropSize) / 2);
 
-    canvas.width = cropW;
-    canvas.height = cropH;
+    canvas.width = cropSize;
+    canvas.height = cropSize;
+    ctx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, cropSize, cropSize);
 
-    ctx.drawImage(video, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
+    const img = ctx.getImageData(0, 0, cropSize, cropSize);
 
-    const codes = await detector.detect(canvas);
-    return codes?.[0]?.rawValue?.trim() || null;
+    // jsQR is global from CDN
+    const code = window.jsQR
+      ? window.jsQR(img.data, cropSize, cropSize, { inversionAttempts: "attemptBoth" })
+      : null;
+
+    return code && code.data ? String(code.data).trim() : null;
   }
 
-  async function liveScanLoop() {
-    if (!canBarcodeDetect()) {
-      setStatus("BarcodeDetector not available here. Use Tap Capture or manual entry.", "err");
-      return;
-    }
+  function stopLiveLoop() {
+    scanning = false;
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    btnLiveScan.textContent = "Live Scan (Auto)";
+  }
 
-    const detector = makeDetector();
+  function liveScanLoop() {
     scanning = true;
     btnLiveScan.textContent = "Stop Live Scan";
-    setStatus("Live scanning… center barcode in the green box.", "ok");
+    setStatus("Live scanning… center ONE QR in the green box.", "ok");
 
-    while (scanning && activeStream) {
+    const tick = () => {
+      if (!scanning || !activeStream) return;
+
       try {
-        const val = await decodeFromVideoFrame(detector);
+        const val = decodeFromVideoFrame_jsQR();
         if (val) {
           deviceId.value = val;
           setStatus("Scanned: " + val, "ok");
-          scanning = false;
-          btnLiveScan.textContent = "Live Scan (Auto)";
-          // Optional: stop camera after scan
-          stopCamera();
+          stopLiveLoop();
+          stopCamera();     // optional: stop camera after scan
           deviceId.focus();
           return;
         }
       } catch (e) {
-        // ignore and continue
+        // keep going
       }
-      await new Promise(r => setTimeout(r, 180));
-    }
+      rafId = requestAnimationFrame(tick);
+    };
 
-    btnLiveScan.textContent = "Live Scan (Auto)";
-    setStatus("Live scan stopped.", "");
+    rafId = requestAnimationFrame(tick);
   }
 
   async function tapCaptureDecode() {
     if (!activeStream) return;
-
-    if (!canBarcodeDetect()) {
-      setStatus("BarcodeDetector not available on this iOS/Safari. Manual entry is enabled.", "err");
-      return;
-    }
-
-    const detector = makeDetector();
-    setStatus("Capturing… hold steady for 1 second.", "");
+    setStatus("Capturing… hold steady.", "");
 
     try {
-      const val = await decodeFromVideoFrame(detector);
+      const val = decodeFromVideoFrame_jsQR();
       if (val) {
         deviceId.value = val;
         setStatus("Decoded: " + val, "ok");
-        // Optional: stop camera after decode
-        stopCamera();
+        stopCamera(); // optional: stop after decode
         deviceId.focus();
       } else {
-        setStatus("No barcode found. Reduce glare, pull item out, try again.", "err");
+        setStatus("No QR found. Make it bigger in frame + reduce glare.", "err");
       }
     } catch (e) {
       setStatus("Decode failed. Try again or type Device ID.", "err");
@@ -544,11 +529,7 @@
       btnLiveScan.disabled = false;
       btnCapture.disabled = false;
 
-      if (canBarcodeDetect()) {
-        setStatus("Camera live. Choose Live Scan or Tap Capture → Decode.", "ok");
-      } else {
-        setStatus("Camera live. BarcodeDetector not available; use manual entry.", "err");
-      }
+      setStatus("Camera live. Choose Live Scan or Tap Capture → Decode.", "ok");
     } catch (e) {
       setStatus("Camera failed. Check iPhone Settings → Safari → Camera → Allow.", "err");
     } finally {
@@ -559,15 +540,14 @@
   btnStop.addEventListener("click", () => stopCamera());
   btnTorch.addEventListener("click", () => toggleTorch());
 
-  btnLiveScan.addEventListener("click", async () => {
+  btnLiveScan.addEventListener("click", () => {
     if (!activeStream) return;
     if (scanning) {
-      scanning = false;
-      btnLiveScan.textContent = "Live Scan (Auto)";
+      stopLiveLoop();
       setStatus("Live scan stopped.", "");
       return;
     }
-    await liveScanLoop();
+    liveScanLoop();
   });
 
   btnCapture.addEventListener("click", async () => {
@@ -645,7 +625,7 @@
   });
 
   btnDemo.addEventListener("click", () => {
-    deviceId.value = "KCI-" + Math.floor(100000000 + Math.random() * 900000000);
+    deviceId.value = "wv:KCI:" + Math.floor(100000 + Math.random() * 900000);
     unit.value = unit.value || "ICU";
     room.value = room.value || "412";
     bed.value = bed.value || "A";
@@ -654,7 +634,6 @@
   });
 
   search.addEventListener("input", () => render());
-
   window.addEventListener("pagehide", () => stopCamera());
 
   render();
