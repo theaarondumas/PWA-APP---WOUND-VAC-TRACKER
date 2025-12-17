@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QR Reader</title>
+  <style>
+    body{font-family:system-ui,-apple-system;margin:16px}
+    video{width:100%;max-width:520px;height:360px;background:#000;border-radius:12px;object-fit:cover}
+    button{padding:10px 12px;border-radius:10px;border:1px solid #ddd;background:#fff;font-weight:700}
+    #out{margin-top:12px;font-size:16px;word-break:break-word}
+  </style>
+</head>
+<body>
+  <h3>Simple QR Reader</h3>
+  <button id="start">Start Scan</button>
+  <button id="stop">Stop</button>
+  <div style="margin-top:10px">
+    <video id="v" playsinline muted></video>
+  </div>
+  <div id="out">Result: —</div>
+
+<script>
+const v = document.getElementById('v');
+const out = document.getElementById('out');
+let stream = null, raf = null;
+
+async function start() {
+  out.textContent = "Result: scanning…";
+  stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: { ideal: "environment" }, width:{ideal:1280}, height:{ideal:720} },
+    audio: false
+  });
+  v.srcObject = stream;
+  await v.play();
+
+  if (!("BarcodeDetector" in window)) {
+    out.textContent = "Result: BarcodeDetector not supported on this browser/device.";
+    return;
+  }
+
+  const detector = new BarcodeDetector({ formats: ["qr_code"] });
+
+  async function loop(){
+    try {
+      const codes = await detector.detect(v);
+      if (codes && codes.length) {
+        out.textContent = "Result: " + codes[0].rawValue;
+        stop();
+        return;
+      }
+    } catch(e) {}
+    raf = requestAnimationFrame(loop);
+  }
+  raf = requestAnimationFrame(loop);
+}
+
+function stop() {
+  if (raf) cancelAnimationFrame(raf);
+  raf = null;
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  v.srcObject = null;
+}
+
+document.getElementById('start').onclick = start;
+document.getElementById('stop').onclick = stop;
+</script>
+</body>
+</html>
