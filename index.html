@@ -358,6 +358,27 @@
   }
 
   function decodeFromVideoFrame_jsQR() {
+  const w = video.videoWidth || 0;
+  const h = video.videoHeight || 0;
+  if (!w || !h) return null;
+
+  // Downscale for speed but keep enough detail to read QR
+  const targetW = 900;
+  const scale = w > targetW ? (targetW / w) : 1;
+  const dw = Math.floor(w * scale);
+  const dh = Math.floor(h * scale);
+
+  canvas.width = dw;
+  canvas.height = dh;
+  ctx.drawImage(video, 0, 0, dw, dh);
+
+  const img = ctx.getImageData(0, 0, dw, dh);
+  const code = window.jsQR
+    ? window.jsQR(img.data, dw, dh, { inversionAttempts: "attemptBoth" })
+    : null;
+
+  return code && code.data ? String(code.data).trim() : null;
+}
     const w = video.videoWidth || 1280;
     const h = video.videoHeight || 720;
     if (!w || !h) return null;
