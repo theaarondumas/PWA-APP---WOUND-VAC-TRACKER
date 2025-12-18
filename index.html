@@ -3,663 +3,292 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0c10" />
-
-  <!-- iOS PWA hints -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Wound Vac Tracker">
-
-  <link rel="manifest" href="./manifest.json">
-  <link rel="apple-touch-icon" href="./icon-192.png">
-
   <title>Wound Vac Tracker (PHI-Free)</title>
 
-  <!-- ✅ iPhone-safe QR decoder (works on GitHub Pages) -->
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
-
   <style>
-    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    body { margin: 0; padding: 16px; background: #0b0c10; color: #e8e8e8; }
-    h1 { font-size: 18px; margin: 0 0 6px; }
-    .sub { color: #b6b6b6; font-size: 13px; margin: 0 0 14px; line-height: 1.35; }
+    body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; margin:0; background:#0b0c10; color:#e8e8e8; }
+    .wrap { padding: 16px; max-width: 520px; margin: 0 auto; }
+    .card { background:#151823; border:1px solid #2a2f45; border-radius:14px; padding:14px; margin: 12px 0; }
+    .btn { width:100%; padding:14px 14px; border-radius:12px; border:0; background:#2f7dff; color:white; font-weight:700; font-size:16px; }
+    .btn:disabled { opacity:.5; }
+    label { display:block; font-size:13px; opacity:.9; margin:10px 0 6px; }
+    input { width:100%; padding:12px; border-radius:10px; border:1px solid #2a2f45; background:#0f1220; color:#e8e8e8; font-size:16px; }
+    .row { display:flex; gap:10px; }
+    .row > div { flex:1; }
+    .muted { opacity:.75; font-size:13px; line-height:1.35; }
 
-    .card { background: #15171c; border: 1px solid #2a2f3a; border-radius: 14px; padding: 14px; margin-bottom: 12px; }
-    .row { display: flex; gap: 10px; flex-wrap: wrap; }
-    .row > * { flex: 1 1 150px; }
-
-    label { display:block; font-size: 12px; color:#b6b6b6; margin: 10px 0 6px; }
-    input, select, textarea, button {
-      width: 100%; box-sizing: border-box; border-radius: 12px; border: 1px solid #2a2f3a;
-      background: #0f1116; color: #e8e8e8; padding: 12px; font-size: 15px;
-      outline: none;
-    }
-    textarea { min-height: 74px; resize: vertical; }
-
-    button { cursor: pointer; border: 1px solid #3b4252; background: #1a1f2a; font-weight: 600; }
-    button.primary { background: #2a66ff; border-color:#2a66ff; }
-    button.danger { background:#c0392b; border-color:#c0392b; }
-    button:disabled { opacity: 0.55; cursor: not-allowed; }
-
-    .hint { font-size: 12px; color:#b6b6b6; margin-top: 8px; line-height: 1.35; }
-    .status { font-size: 13px; margin-top: 10px; color:#ffd479; }
-    .ok { color: #8affb3; }
-    .err { color: #ff8a8a; }
-
-    .toolbar { display:flex; gap: 10px; flex-wrap: wrap; }
-    .toolbar > * { flex: 1 1 160px; }
-
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .pill { display:inline-block; padding: 4px 8px; border-radius: 999px; background:#0f1116; border:1px solid #2a2f3a; font-size: 12px; color:#b6b6b6; }
-    .footer { margin-top: 10px; font-size: 12px; color:#7f8796; }
-
-    /* Video + overlay */
-    .videoWrap { position: relative; width: 100%; border-radius: 14px; overflow: hidden; border: 1px solid #2a2f3a; background:#000; }
-    video { width: 100%; display:block; background:#000; }
-
-    .overlay {
-      position:absolute; inset:0;
-      pointer-events:none;
+    /* Scanner + success overlay */
+    #reader { width:100%; border-radius: 12px; overflow:hidden; }
+    .status {
       display:flex; align-items:center; justify-content:center;
+      gap:10px; padding:10px; border-radius:12px; font-weight:800;
+      border:1px solid #2a2f45; background:#0f1220;
+      margin-top:12px;
+      min-height:46px;
     }
-    /* QR works best with a more square guide */
-    .guideBox {
-      width: 72%;
-      max-width: 420px;
-      aspect-ratio: 1 / 1;
-      border-radius: 14px;
-      border: 2px solid rgba(138,255,179,0.85);
-      box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+    .status.success { border-color:#2ecc71; background: rgba(46,204,113,.12); }
+    .status.error   { border-color:#ff4d4d; background: rgba(255,77,77,.10); }
+    .check {
+      width:26px; height:26px; border-radius:999px; display:inline-flex;
+      align-items:center; justify-content:center; font-size:18px;
+      border:2px solid currentColor;
     }
-    .guideText {
-      position:absolute;
-      bottom: 10px;
-      left: 10px;
-      right: 10px;
-      font-size: 12px;
-      color: rgba(232,232,232,0.85);
-      text-shadow: 0 1px 2px rgba(0,0,0,0.6);
-    }
+    .success .check { color:#2ecc71; }
+    .error .check { color:#ff4d4d; }
+    .hidden { display:none; }
 
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #2a2f3a; font-size: 13px; }
-    th { color:#b6b6b6; font-weight:600; }
-
-    .banner {
-      background:#0f1116;
-      border:1px solid #2a2f3a;
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 12px;
-      color:#b6b6b6;
-      margin-bottom: 12px;
-      line-height: 1.35;
+    /* iOS-friendly toast overlay */
+    .toast {
+      position:fixed; left:50%; top:16px; transform:translateX(-50%);
+      padding:10px 14px; border-radius:999px;
+      border:1px solid #2a2f45; background:#151823; color:#e8e8e8;
+      font-weight:800; z-index:9999;
+      box-shadow: 0 8px 30px rgba(0,0,0,.35);
+      opacity:0; pointer-events:none; transition:opacity .18s ease;
+      max-width: 90%;
+      text-align:center;
     }
-    .banner b { color:#e8e8e8; }
+    .toast.show { opacity:1; }
+    .toast.success { border-color:#2ecc71; background: rgba(46,204,113,.15); }
+    .toast.error   { border-color:#ff4d4d; background: rgba(255,77,77,.12); }
   </style>
+
+  <!-- html5-qrcode (scanner library) -->
+  <script src="https://unpkg.com/html5-qrcode"></script>
 </head>
 
 <body>
-  <h1>Wound Vac Tracker (PHI-Free)</h1>
-  <p class="sub">
-    Track devices by <b>Device ID (QR)</b> + location (<b>Unit / Room / Bed</b>). No patient names, MRNs, DOB, or PHI.
-    Scanning uses <span class="pill">jsQR</span> (iPhone-safe).
-  </p>
+  <div class="wrap">
+    <h2 style="margin:10px 0 0;">Wound Vac Tracker</h2>
+    <div class="muted">PHI-free device log (serial + location). No patient names, MRNs, or DOBs.</div>
 
-  <div class="banner" id="installBanner">
-    <b>Install as an app:</b> on iPhone tap <b>Share</b> → <b>Add to Home Screen</b>.
-    This improves “app feel” + reliability.
-  </div>
+    <div class="card">
+      <button id="startBtn" class="btn">Start Scan</button>
+      <div style="height:10px;"></div>
+      <div id="reader" class="hidden"></div>
 
-  <div class="card">
-    <div class="toolbar">
-      <button id="btnStart" class="primary">Start Camera</button>
-      <button id="btnStop" disabled>Stop Camera</button>
-      <button id="btnTorch" disabled>Toggle Torch</button>
-      <button id="btnClearAll" class="danger">Clear All Records</button>
+      <div id="status" class="status hidden">
+        <span class="check">✓</span>
+        <span id="statusText">Code accepted</span>
+      </div>
+
+      <div class="muted" style="margin-top:10px;">
+        Tip: If scanning is finicky, use manual entry below.
+      </div>
     </div>
 
-    <div class="toolbar" style="margin-top:10px;">
-      <button id="btnLiveScan" disabled>Live Scan (Auto)</button>
-      <button id="btnCapture" disabled>Tap Capture → Decode</button>
-    </div>
+    <div class="card">
+      <label>Serial Number (from scan or manual)</label>
+      <input id="serial" placeholder="e.g., KCI-123456789" autocomplete="off" inputmode="latin" />
 
-    <div style="margin-top:12px;">
-      <div class="videoWrap">
-        <video id="video" playsinline muted></video>
-        <div class="overlay">
-          <div class="guideBox"></div>
-          <div class="guideText">Tip: show ONE QR at a time, center it in the green box, reduce glare, hold steady.</div>
+      <div class="row">
+        <div>
+          <label>Unit</label>
+          <input id="unit" placeholder="e.g., 5N" autocomplete="off" />
+        </div>
+        <div>
+          <label>Room</label>
+          <input id="room" placeholder="e.g., 512" autocomplete="off" inputmode="numeric" />
+        </div>
+        <div>
+          <label>Bed</label>
+          <input id="bed" placeholder="A/B" autocomplete="off" />
         </div>
       </div>
 
-      <div id="scanStatus" class="status">Ready. Tap <b>Start Camera</b> to request camera permission.</div>
-      <div class="hint">
-        If decode fails: make the QR bigger in frame (fill ~40–60%), avoid glare, and ensure only ONE code is visible.
-      </div>
+      <label>Logged by (initials or role)</label>
+      <input id="by" placeholder="e.g., AD / Central Supply" autocomplete="off" />
+
+      <div style="height:12px;"></div>
+      <button id="saveBtn" class="btn">Save Log</button>
+      <div class="muted" style="margin-top:10px;">Saved locally on this device (no cloud yet).</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 8px;">Recent Logs</h3>
+      <div id="list" class="muted">No logs yet.</div>
     </div>
   </div>
 
-  <div id="orientWarn" class="hint err" style="display:none; margin-top:8px;">
-    If scanning won’t decode: turn <b>OFF</b> iPhone <b>Orientation Lock</b> (🔒) and try landscape.
-  </div>
-
-  <div class="card">
-    <div class="row">
-      <div>
-        <label>Device ID (scan or type)</label>
-        <input id="deviceId" class="mono" placeholder="e.g., wv:KCI:123456" autocomplete="off" />
-      </div>
-      <div>
-        <label>Status</label>
-        <select id="status">
-          <option value="IN_STOCK">IN_STOCK</option>
-          <option value="ISSUED">ISSUED</option>
-          <option value="IN_USE">IN_USE</option>
-          <option value="SOILED">SOILED</option>
-          <option value="RETURNED">RETURNED</option>
-          <option value="MISSING">MISSING</option>
-          <option value="SERVICE">SERVICE</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label>Unit</label>
-        <input id="unit" placeholder="e.g., 4N / ICU / ED" autocomplete="off" />
-      </div>
-      <div>
-        <label>Room</label>
-        <input id="room" placeholder="e.g., 412" autocomplete="off" />
-      </div>
-      <div>
-        <label>Bed</label>
-        <input id="bed" placeholder="e.g., A / B" autocomplete="off" />
-      </div>
-    </div>
-
-    <label>Notes (PHI-free only)</label>
-    <textarea id="notes" placeholder="e.g., 'Found in clean utility', 'Needs canister', 'Battery low'"></textarea>
-
-    <div class="toolbar" style="margin-top:12px;">
-      <button id="btnSave" class="primary">Save Record</button>
-      <button id="btnExport">Export CSV</button>
-      <button id="btnDemo">Demo Fill (Test)</button>
-    </div>
-
-    <div class="footer">
-      Data is saved to <span class="pill">localStorage</span> on this device/browser only. No PHI.
-    </div>
-  </div>
-
-  <div class="card">
-    <div class="row">
-      <div>
-        <label>Search (Device ID / Unit / Room / Bed)</label>
-        <input id="search" placeholder="type to filter…" autocomplete="off" />
-      </div>
-      <div>
-        <label>Quick Stats</label>
-        <div id="stats" class="hint">—</div>
-      </div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>Device ID</th>
-          <th>Status</th>
-          <th>Location</th>
-          <th>Notes</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-  </div>
+  <div id="toast" class="toast"></div>
 
 <script>
-(() => {
-  // -----------------------------
-  // PWA: register service worker
-  // -----------------------------
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", async () => {
-      try { await navigator.serviceWorker.register("./sw.js"); }
-      catch (e) { /* ignore */ }
-    });
+  // ====== SETTINGS ======
+  // Accept patterns like:
+  // - "KCI-123456"
+  // - "1234567890"
+  // - "VAC:ABC12345"
+  // Tweak to your reality once you confirm what the QR actually returns.
+  const ALLOWED = /^[A-Za-z0-9:\-]{6,40}$/;
+
+  // ====== UI HELPERS ======
+  const $ = (id) => document.getElementById(id);
+  const toastEl = $("toast");
+  const statusEl = $("status");
+  const statusText = $("statusText");
+
+  function showToast(msg, kind="success") {
+    toastEl.textContent = msg;
+    toastEl.className = `toast show ${kind}`;
+    setTimeout(() => toastEl.classList.remove("show"), 1100);
   }
 
-  // -----------------------------
-  // Storage
-  // -----------------------------
-  const KEY = "woundvac_records_v2";
-
-  function loadRecords() {
-    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); }
-    catch { return []; }
-  }
-  function saveRecords(records) {
-    localStorage.setItem(KEY, JSON.stringify(records));
+  function setStatus(kind, msg) {
+    statusEl.classList.remove("hidden", "success", "error");
+    statusEl.classList.add(kind);
+    statusText.textContent = msg;
   }
 
-  // -----------------------------
-  // DOM
-  // -----------------------------
-  const video = document.getElementById("video");
-  const scanStatus = document.getElementById("scanStatus");
-  const orientWarn = document.getElementById("orientWarn");
-  const btnStart = document.getElementById("btnStart");
-  const btnStop = document.getElementById("btnStop");
-  const btnTorch = document.getElementById("btnTorch");
-  const btnClearAll = document.getElementById("btnClearAll");
+  function hideStatus() {
+    statusEl.classList.add("hidden");
+    statusEl.classList.remove("success","error");
+  }
 
-  const btnLiveScan = document.getElementById("btnLiveScan");
-  const btnCapture = document.getElementById("btnCapture");
+  function vibrateOk() {
+    if (navigator.vibrate) navigator.vibrate(60);
+  }
 
-  const deviceId = document.getElementById("deviceId");
-  const statusEl = document.getElementById("status");
-  const unit = document.getElementById("unit");
-  const room = document.getElementById("room");
-  const bed = document.getElementById("bed");
-  const notes = document.getElementById("notes");
+  // ====== STORAGE ======
+  const KEY = "woundvac_logs_v1";
+  function loadLogs() {
+    try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+  }
+  function saveLogs(logs) {
+    localStorage.setItem(KEY, JSON.stringify(logs));
+  }
+  function renderLogs() {
+    const logs = loadLogs().slice().reverse().slice(0, 20);
+    if (!logs.length) { $("list").textContent = "No logs yet."; return; }
+    $("list").innerHTML = logs.map(l => {
+      const when = new Date(l.ts).toLocaleString();
+      return `<div style="padding:10px 0;border-top:1px solid #2a2f45">
+        <div><b>${escapeHtml(l.serial)}</b></div>
+        <div>${escapeHtml(l.unit)} / Room ${escapeHtml(l.room)} / Bed ${escapeHtml(l.bed)}</div>
+        <div style="opacity:.8">${when} — ${escapeHtml(l.by)}</div>
+      </div>`;
+    }).join("");
+  }
+  function escapeHtml(s="") {
+    return String(s).replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
+  }
 
-  const btnSave = document.getElementById("btnSave");
-  const btnExport = document.getElementById("btnExport");
-  const btnDemo = document.getElementById("btnDemo");
-
-  const search = document.getElementById("search");
-  const tbody = document.getElementById("tbody");
-  const stats = document.getElementById("stats");
-
-  // -----------------------------
-  // Camera + scanning (jsQR)
-  // -----------------------------
-  let activeStream = null;
+  // ====== SCANNER ======
+  let html5Qr = null;
   let scanning = false;
-  let torchOn = false;
-  let rafId = null;
 
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  async function startScan() {
+    if (scanning) return;
 
-  function setStatus(msg, cls) {
-    scanStatus.className = "status " + (cls || "");
-    scanStatus.textContent = msg;
-  }
+    // IMPORTANT: iOS requires HTTPS (or localhost) for camera
+    $("reader").classList.remove("hidden");
+    hideStatus();
 
-  async function startCamera() {
-    video.setAttribute("playsinline", "true");
-    video.muted = true;
+    html5Qr = html5Qr || new Html5Qrcode("reader");
 
-    const constraints = {
-      audio: false,
-      video: {
-        facingMode: "environment",
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
+    const config = {
+      fps: 10,
+      qrbox: { width: 240, height: 240 },
+      rememberLastUsedCamera: true,
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E
+      ]
     };
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream;
-      await video.play();
-      return stream;
-    } catch (e) {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      video.srcObject = stream;
-      await video.play();
-      return stream;
-    }
-  }
-
-  function stopCamera() {
-    scanning = false;
-    torchOn = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-
-    if (activeStream) {
-      activeStream.getTracks().forEach(t => t.stop());
-      activeStream = null;
-    }
-    video.srcObject = null;
-
-    btnStop.disabled = true;
-    btnTorch.disabled = true;
-    btnLiveScan.disabled = true;
-    btnCapture.disabled = true;
-    orientWarn.style.display = "none";
-    btnLiveScan.textContent = "Live Scan (Auto)";
-    setStatus("Camera stopped. Tap Start Camera when ready.", "");
-  }
-
-  async function toggleTorch() {
-    if (!activeStream) return;
-    const track = activeStream.getVideoTracks()[0];
-    if (!track) return;
-
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    if (!caps.torch) {
-      setStatus("Torch not supported on this device/browser.", "err");
-      return;
-    }
-
-    torchOn = !torchOn;
-    try {
-      await track.applyConstraints({ advanced: [{ torch: torchOn }] });
-      setStatus(torchOn ? "Torch ON" : "Torch OFF", "ok");
-    } catch {
-      setStatus("Could not toggle torch.", "err");
-    }
-  }
-
-  function decodeFromVideoFrame_jsQR() {
-  const w = video.videoWidth || 0;
-  const h = video.videoHeight || 0;
-  if (!w || !h) return null;
-
-  // Downscale for speed but keep enough detail to read QR
-  const targetW = 900;
-  const scale = w > targetW ? (targetW / w) : 1;
-  const dw = Math.floor(w * scale);
-  const dh = Math.floor(h * scale);
-
-  canvas.width = dw;
-  canvas.height = dh;
-  ctx.drawImage(video, 0, 0, dw, dh);
-
-  const img = ctx.getImageData(0, 0, dw, dh);
-  const code = window.jsQR
-    ? window.jsQR(img.data, dw, dh, { inversionAttempts: "attemptBoth" })
-    : null;
-
-  return code && code.data ? String(code.data).trim() : null;
-}
-    const w = video.videoWidth || 1280;
-    const h = video.videoHeight || 720;
-    if (!w || !h) return null;
-
-    // Crop to center area (guide box) for speed + fewer false reads
-    const cropSize = Math.floor(Math.min(w, h) * 0.78);
-    const sx = Math.floor((w - cropSize) / 2);
-    const sy = Math.floor((h - cropSize) / 2);
-
-    canvas.width = cropSize;
-    canvas.height = cropSize;
-    ctx.drawImage(video, sx, sy, cropSize, cropSize, 0, 0, cropSize, cropSize);
-
-    const img = ctx.getImageData(0, 0, cropSize, cropSize);
-
-    // jsQR is global from CDN
-    const code = window.jsQR
-      ? window.jsQR(img.data, cropSize, cropSize, { inversionAttempts: "attemptBoth" })
-      : null;
-
-    return code && code.data ? String(code.data).trim() : null;
-  }
-
-  function stopLiveLoop() {
-    scanning = false;
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-    btnLiveScan.textContent = "Live Scan (Auto)";
-  }
-
-  function liveScanLoop() {
     scanning = true;
-    btnLiveScan.textContent = "Stop Live Scan";
-    setStatus("Live scanning… center ONE QR in the green box.", "ok");
-
-    const tick = () => {
-      if (!scanning || !activeStream) return;
-
-      try {
-        const val = decodeFromVideoFrame_jsQR();
-        if (val) {
-          deviceId.value = val;
-          setStatus("Scanned: " + val, "ok");
-          stopLiveLoop();
-          stopCamera();     // optional: stop camera after scan
-          deviceId.focus();
-          return;
-        }
-      } catch (e) {
-        // keep going
-      }
-      rafId = requestAnimationFrame(tick);
-    };
-
-    rafId = requestAnimationFrame(tick);
-  }
-
-  async function tapCaptureDecode() {
-    if (!activeStream) return;
-    setStatus("Capturing… hold steady.", "");
+    $("startBtn").disabled = true;
+    $("startBtn").textContent = "Scanning…";
 
     try {
-      const val = decodeFromVideoFrame_jsQR();
-      if (val) {
-        deviceId.value = val;
-        setStatus("Decoded: " + val, "ok");
-        stopCamera(); // optional: stop after decode
-        deviceId.focus();
-      } else {
-        setStatus("No QR found. Make it bigger in frame + reduce glare.", "err");
-      }
+      await html5Qr.start(
+        { facingMode: "environment" },
+        config,
+        (decodedText) => onScan(decodedText),
+        () => { /* ignore per-frame errors */ }
+      );
     } catch (e) {
-      setStatus("Decode failed. Try again or type Device ID.", "err");
+      scanning = false;
+      $("startBtn").disabled = false;
+      $("startBtn").textContent = "Start Scan";
+      setStatus("error", "Camera error — try again or use manual entry.");
+      showToast("Camera error", "error");
+      console.error(e);
     }
   }
 
-  // -----------------------------
-  // Records UI
-  // -----------------------------
-  function fmtTime(ts) {
-    const d = new Date(ts);
-    return d.toLocaleString();
+  async function stopScan() {
+    if (!html5Qr || !scanning) return;
+    scanning = false;
+    try { await html5Qr.stop(); } catch {}
+    $("startBtn").disabled = false;
+    $("startBtn").textContent = "Start Scan";
   }
 
-  function sanitizeCSV(s) {
-    const str = String(s ?? "");
-    if (/^[=+\-@]/.test(str)) return "'" + str;
-    return str;
-  }
+  async function onScan(text) {
+    const cleaned = String(text || "").trim();
 
-  function recordsFiltered(records) {
-    const q = search.value.trim().toLowerCase();
-    if (!q) return records;
-    return records.filter(r => {
-      const hay = `${r.deviceId} ${r.status} ${r.unit} ${r.room} ${r.bed} ${r.notes}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }
-
-  function escapeHtml(str) {
-    return String(str ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function render() {
-    const records = loadRecords();
-    const filtered = recordsFiltered(records);
-
-    const byStatus = {};
-    for (const r of records) byStatus[r.status] = (byStatus[r.status] || 0) + 1;
-    const summary = Object.entries(byStatus)
-      .sort((a,b)=>b[1]-a[1])
-      .map(([k,v]) => `${k}: ${v}`)
-      .join(" • ");
-    stats.textContent = records.length ? `Total: ${records.length} • ${summary}` : "No records yet.";
-
-    tbody.innerHTML = "";
-    for (const r of filtered) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${fmtTime(r.ts)}</td>
-        <td class="mono">${escapeHtml(r.deviceId)}</td>
-        <td>${escapeHtml(r.status)}</td>
-        <td>${escapeHtml([r.unit,r.room,r.bed].filter(Boolean).join(" / "))}</td>
-        <td>${escapeHtml(r.notes || "")}</td>
-        <td><button data-del="${r.id}">Delete</button></td>
-      `;
-      tbody.appendChild(tr);
-    }
-
-    tbody.querySelectorAll("button[data-del]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-del");
-        const records = loadRecords().filter(x => x.id !== id);
-        saveRecords(records);
-        render();
-      });
-    });
-  }
-
-  function resetFormKeepLocation() {
-    deviceId.value = "";
-    statusEl.value = "IN_STOCK";
-    notes.value = "";
-    deviceId.focus();
-  }
-
-  // -----------------------------
-  // Actions
-  // -----------------------------
-  btnStart.addEventListener("click", async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus("Camera API not supported in this browser.", "err");
+    // Validate
+    if (!cleaned || !ALLOWED.test(cleaned)) {
+      setStatus("error", "Invalid code — try again.");
+      showToast("Invalid code", "error");
       return;
     }
 
-    try {
-      btnStart.disabled = true;
-      setStatus("Requesting camera permission…", "");
+    // ✅ SUCCESS UX
+    $("serial").value = cleaned;
+    setStatus("success", "Code accepted");
+    showToast("Code accepted ✅", "success");
+    vibrateOk();
 
-      activeStream = await startCamera();
+    // Pause scanning so it doesn’t keep firing
+    await stopScan();
 
-      btnStop.disabled = false;
-      btnTorch.disabled = false;
-      btnLiveScan.disabled = false;
-      btnCapture.disabled = false;
+    // Small delay so the user *sees* the green check, then jump them forward
+    setTimeout(() => {
+      $("unit").focus();
+    }, 650);
+  }
 
-      setStatus("Camera live. Choose Live Scan or Tap Capture → Decode.", "ok");
-    } catch (e) {
-      setStatus("Camera failed. Check iPhone Settings → Safari → Camera → Allow.", "err");
-    } finally {
-      btnStart.disabled = false;
-    }
-  });
+  // ====== SAVE LOG ======
+  $("saveBtn").addEventListener("click", () => {
+    const serial = $("serial").value.trim();
+    const unit = $("unit").value.trim();
+    const room = $("room").value.trim();
+    const bed  = $("bed").value.trim();
+    const by   = $("by").value.trim() || "Staff";
 
-  btnStop.addEventListener("click", () => stopCamera());
-  btnTorch.addEventListener("click", () => toggleTorch());
-
-  btnLiveScan.addEventListener("click", () => {
-    if (!activeStream) return;
-    if (scanning) {
-      stopLiveLoop();
-      setStatus("Live scan stopped.", "");
+    if (!serial || !ALLOWED.test(serial)) {
+      showToast("Enter a valid serial", "error");
+      setStatus("error", "Enter a valid serial number.");
       return;
     }
-    liveScanLoop();
-  });
-
-  btnCapture.addEventListener("click", async () => {
-    if (!activeStream) return;
-    await tapCaptureDecode();
-  });
-
-  btnSave.addEventListener("click", () => {
-    const idVal = deviceId.value.trim();
-    if (!idVal) {
-      alert("Device ID is required (scan or type).");
-      deviceId.focus();
+    if (!unit || !room || !bed) {
+      showToast("Add Unit/Room/Bed", "error");
+      setStatus("error", "Please complete Unit / Room / Bed.");
       return;
     }
 
-    const record = {
-      id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2),
-      ts: Date.now(),
-      deviceId: idVal,
-      status: statusEl.value,
-      unit: unit.value.trim(),
-      room: room.value.trim(),
-      bed: bed.value.trim(),
-      notes: notes.value.trim()
-    };
+    const logs = loadLogs();
+    logs.push({ serial, unit, room, bed, by, ts: Date.now() });
+    saveLogs(logs);
 
-    const records = loadRecords();
-    records.unshift(record);
-    saveRecords(records);
+    showToast("Saved ✅", "success");
+    setStatus("success", "Saved");
+    renderLogs();
 
-    setStatus("Saved record for " + idVal, "ok");
-    render();
-    resetFormKeepLocation();
+    // Optional: clear fields except Unit (often same area)
+    $("serial").value = "";
+    $("room").value = "";
+    $("bed").value = "";
   });
 
-  btnExport.addEventListener("click", () => {
-    const records = loadRecords();
-    if (!records.length) { alert("No records to export."); return; }
-
-    const headers = ["timestamp","device_id","status","unit","room","bed","notes"];
-    const lines = [headers.join(",")];
-
-    for (const r of records) {
-      const row = [
-        new Date(r.ts).toISOString(),
-        sanitizeCSV(r.deviceId),
-        sanitizeCSV(r.status),
-        sanitizeCSV(r.unit),
-        sanitizeCSV(r.room),
-        sanitizeCSV(r.bed),
-        sanitizeCSV(r.notes || "")
-      ].map(v => `"${String(v).replaceAll('"','""')}"`);
-      lines.push(row.join(","));
-    }
-
-    const csv = lines.join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "woundvac_records.csv";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  });
-
-  btnClearAll.addEventListener("click", () => {
-    const ok = confirm("Clear ALL records on this device? This cannot be undone.");
-    if (!ok) return;
-    saveRecords([]);
-    setStatus("All records cleared.", "");
-    render();
-  });
-
-  btnDemo.addEventListener("click", () => {
-    deviceId.value = "wv:KCI:" + Math.floor(100000 + Math.random() * 900000);
-    unit.value = unit.value || "ICU";
-    room.value = room.value || "412";
-    bed.value = bed.value || "A";
-    notes.value = "Demo record (PHI-free).";
-    setStatus("Demo values filled. Tap Save Record.", "");
-  });
-
-  search.addEventListener("input", () => render());
-  window.addEventListener("pagehide", () => stopCamera());
-
-  render();
-  setStatus("Ready. Tap Start Camera to request camera permission.", "");
-})();
+  $("startBtn").addEventListener("click", startScan);
+  renderLogs();
 </script>
 
 </body>
